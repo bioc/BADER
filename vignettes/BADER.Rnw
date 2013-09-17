@@ -1,0 +1,134 @@
+%\VignetteIndexEntry{Analysing RNA-Seq data with the "BADER" package}
+%/VignettePackage{BADER}
+
+\documentclass[a4paper]{article}
+\title{BADER -- Bayesian Analysis of Differential Expression in RNA Sequencing Data}
+\author{Andreas Neudecker$^{1}$, Matthias Katzfuss$^{1}$ \\[0.1cm]
+$^{1}$Institut f\"{u}r Angewandte Mathematik, Universit\"{a}t Heidelberg}
+
+
+\usepackage{amsmath,colonequals, natbib, amsfonts, psfrag}
+\begin{document}
+\bibliographystyle{apalike}
+\maketitle
+\section{Introduction}
+The BADER package is intended for the analysis of RNA sequencing data. The data come in form
+of count tables, $\{k_{ij}^T\}$, quantifying the expression levels for different entities $j$ (e.g., genes), in
+samples $i$ from a treatment group $T = A,B$. Due to low sample sizes there is considerable uncertainty
+in parameter estimation in this data. To not only estimate parameters but also quantify this
+uncertainity BADER uses a fully Bayesian approach.
+
+The data is
+often assumed to be distributed according to an overdispersed poisson model. For example, 
+\cite{Robinson2008} and \cite{Anders2010} use a negative binomial model. In BADER we use the following
+ two-stage model:
+\begin{align*}
+\label{lognormalmodel}
+   k_{ij}^T | \lambda_{ij}^T & \stackrel{ind.}{\sim} Poi( s_i^T e^{ \lambda_{ij}^T}); \quad \text{for all} \; i, j, T, \\
+   \lambda_{ij}^T | \mu_j^T, \alpha_j^T & \stackrel{ind.}{\sim} N( \mu_j^T, e^{\alpha_j^T}  ); \quad \text{for all} \; i, j, T.
+\end{align*}
+BADER estimates the posterior distributions of the log mean parameter $\mu_j^A$, the log dispersion
+parameter $\alpha_j^T$, the log fold change parameter $\gamma_j \colonequals \mu_j^B - \mu_j^A$,
+and the indicator variable showing whether a gene is differentially expressed.
+
+\section{Quickstart}
+In this section we will show how to use the BADER package on a dataset from \cite{Brooks2011}.
+The dataset is a count table with expression measures for three treated and four 
+untreated species of \textit{drosohpila melanogaster}.
+<<loaddata>>=
+library(BADER)
+datafile <- system.file( "extdata/pasilla_gene_counts.tsv", package="pasilla" )
+pasillaCountTable <- read.table( datafile, header=TRUE, row.names=1 )
+head(pasillaCountTable)
+@
+The datasets consists of data created by both single-end and paired-end method. 
+To keep things simple we only use the paired-end samples. We drop all genes with
+no counts for any sample. Also, as we don't want the code in this vignette to take a long time to run,
+we only use the first 500 genes. We describe the experiment design in the factor
+\texttt{design}.
+<<splitup>>=
+genetable <- pasillaCountTable[,c(3,4,6,7)]
+genetable <- genetable[rowSums(genetable) > 0,]
+genetable <- genetable[1:500,]
+design <- factor(c("A","A","B","B"))
+@
+Now we run the MCMC sampler on our data. For this vignette, we only use a low number of MCMC iterations. However,
+you will get better results if you let the MCMC sampler produce more samples from the posterior
+distribution.
+<<runMCMC, cache=TRUE>>=
+set.seed(21)
+results <- BADER(genetable,design,burn=1e3,reps=1e3,printEvery=1e3)
+@
+The \texttt{results} object is a list containing the posterior means of the log means, log dispersion parameters, and
+log fold change parameters, and the posterior probabilities of
+differential expression. For instance,
+we can print out a list of the 10 genes with the highest posterior probability of differential expression.
+<<printResults>>=
+names(results)
+rownames(genetable)[order(results$diffProb,decreasing=TRUE)[1:10]]
+@
+\section{The Posterior Distributions}
+We can control the output of the \texttt{BADER} function via the
+\texttt{mode} parameter. Setting \texttt{mode="minimal"} only returns the posterior means of the parameters listed above, \texttt{mode="full"}
+returns the full posterior distribution of the log fold change parameters, and \texttt{mode="extended"} also
+gives us the posterior distributions for the remaining parameters.
+
+Having the full posterior distribution at hand lets us draw more sophisticated conclusions regarding
+genes with posterior probability of differential expression around $0.5$. This is especially useful for datasets
+with strong overdispersion (i.e., low signal-to-noise ratio).
+
+<<toyDataset, cache=TRUE>>=
+set.seed(21)
+gam <- c(rnorm(50,0,2),rep(0,450))
+muA <- rnorm(500,3,1)
+muB <- muA + gam
+kA <- t(matrix(rnbinom(2*500,mu=exp(muA),size=exp(1)),nrow=2,byrow=TRUE))
+kB <- t(matrix(rnbinom(2*500,mu=exp(muB),size=exp(1)),nrow=2,byrow=TRUE))
+genetable <- cbind(kA,kB)
+design <- factor(c("A","A","B","B"))
+
+results <- BADER(genetable,design,mode="full",burn=1e3,reps=3e3,printEvery=1e3)
+@
+For example, for genes 18 and 142, we can compare the posterior distribution of the log fold change
+parameter with a point estimate (e.g., the posterior mean, in blue) and the true log fold change (in green).
+These distributions give us information not only about the probability of differential expression,
+but also about the uncertainty in the data regarding the log fold change parameter. 
+
+<<postPlot, fig=TRUE, width=12>>=
+par(mfrow=c(1,2))
+temp <- hist(results$logFoldChangeDist[,18],breaks=seq(-10.125,10.125,by=0.25),plot=FALSE)
+temp$density <- temp$density/sum(temp$density)
+plot(temp, freq=FALSE,ylab="probability",xlab="log fold change",main="gene no. 18",xlim=c(-1,5))
+abline(v=gam[18],col="#4DAF4A", lwd=2)
+abline(v=results$logFoldChange[18],col="#377EB8",lwd=2)
+temp <- hist(results$logFoldChangeDist[,142],breaks=seq(-10.125,10.125,by=0.25),plot=FALSE)
+temp$density <- temp$density/sum(temp$density)
+plot(temp, freq=FALSE,ylab="probability",xlab="log fold change",main="gene no. 142",xlim=c(-4,1))
+abline(v=gam[142],col="#4DAF4A", lwd=2)
+abline(v=results$logFoldChange[142],col="#377EB8",lwd=2)
+@
+
+\section{Gene Set Enrichment}
+In this section we show how to use the samples obtained from the posterior distribution
+can be used for further inference on sets or groups of genes (``gene set enrichment'').
+In our toy example we could assume that the genes $\mathcal{S} = \{1,2,3,51,52,53\}$ and
+$\mathcal{T} = \{54,55,56\}$ belong
+to two groups and
+test whether these groups are enriched. We test the ``competitive null hypothesis'' \citep[see][]{Goeman2007}
+that the genes in $\mathcal{S},\mathcal{T}$ are at most as often differentially expressed as the
+remaining genes. We can test this hypothesis easily with the posterior distribution of the
+log fold change parameter.
+<<gse>>=
+S <- c(1,2,3,51,52,53)
+T <- c(54,55,56)
+
+f <- function(sample,set)
+    mean(sample[set] != 0) > mean(sample[-set] != 0)
+
+mean(apply(results$logFoldChangeDist,1,f,set=S))
+mean(apply(results$logFoldChangeDist,1,f,set=T))
+@
+
+\bibliography{BADER}
+
+\end{document}
