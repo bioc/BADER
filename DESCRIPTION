@@ -2,7 +2,7 @@ Package: BADER
 Type: Package
 Title: Bayesian Analysis of Differential Expression in RNA Sequencing
         Data
-Version: 1.15.0
+Version: 1.16.0
 Date: 2012-12-21
 Author: Andreas Neudecker, Matthias Katzfuss
 Maintainer: Andreas Neudecker <a.neudecker@arcor.de>
