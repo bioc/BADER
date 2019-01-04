@@ -2,7 +2,7 @@ Package: BADER
 Type: Package
 Title: Bayesian Analysis of Differential Expression in RNA Sequencing
         Data
-Version: 1.20.0
+Version: 1.20.1
 Date: 2012-12-21
 Author: Andreas Neudecker, Matthias Katzfuss
 Maintainer: Andreas Neudecker <a.neudecker@arcor.de>
@@ -15,4 +15,4 @@ Description: For RNA sequencing count data, BADER fits a Bayesian
         such as gene set enrichment.
 License: GPL-2
 Suggests: pasilla (>= 0.2.10)
-biocViews: Sequencing, RNASeq, DifferentialExpression, Software, SAGE
+biocViews: ImmunoOncology, Sequencing, RNASeq, DifferentialExpression, Software, SAGE
